@@ -4,10 +4,10 @@ from typing import Annotated,TypedDict
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 from agent import news_list_tool
+from llm import llm
 from dotenv import load_dotenv
 from pathlib import Path
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langchain_ollama import ChatOllama
 
 THREAD_ID = "session-1"  # define a constant for the thread id
 NEWS_STATE_KEY = "news_list_graph"  # define a constant for the state key
@@ -27,7 +27,9 @@ class N_Number(BaseModel):
 
 #------------------------ FUNCTION DEFINITIONS ------------------------#
 
-llm=ChatOllama(model="gemma3:4b", temperature=0.3, max_tokens=1000)
+# llm=ChatOllama(model="gemma3:4b", temperature=0.3, max_tokens=1000)
+
+
 n_number_finder=llm.with_structured_output(N_Number)
 
 
@@ -95,16 +97,7 @@ def n_news(user_input: str):
 def get_news_list(user_input: str):
     """Get today's latest news headlines with urls. Handles both general and specific topic requests.
     
-    Args:
-        user_input: The user's request for news/articles/headlines (e.g., 'latest news', 'sports news', 'politics news')
-    
-    Examples of when to use:
-    - "What's the latest news?"
-    - "Show me today's news" 
-    - "Any breaking news today?"
-    - "Show me sports news"
-    - "Politics news today"
-    
+   
     Do NOT use for greetings or general conversation.
     """
     with SqliteSaver.from_conn_string(str(db_path)) as cp:

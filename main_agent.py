@@ -1,98 +1,112 @@
 from news_list_graph import get_news_list
 from chosen_article_graph import get_specific_article
-from langchain_ollama import ChatOllama
-from langchain.prompts import ChatPromptTemplate
-
+from prompt import news_chat_prompt
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage
+from langgraph.graph import START, MessagesState, StateGraph,END
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langchain_core.messages import ToolMessage
+from pathlib import Path
+from llm import llm
+
 load_dotenv()
 
-llm=ChatOllama(model="llama3.2:latest", temperature=0.7, max_tokens=32000)
+THREAD_ID = "session-fresh"  # define a constant for the thread id
+db_path = Path("chat_history.db")
 
 tools=[get_news_list,get_specific_article]
 
-# Create a system prompt to guide tool usage
-system_prompt = """You are a helpful news assistant. You have access to tools for getting news information.
+llm_with_tools =llm.bind_tools(tools)
 
-CRITICAL GUIDELINES:
-- ONLY use tools when the user specifically asks for news, articles, or current events
-- For greetings (hello, hi, how are you), general conversation, or non-news questions, respond directly WITHOUT using any tools
 
-TOOL SELECTION RULES:
-- Use get_news_list for ALL news requests (general, category-specific, or topic-specific)
-  Examples: "latest news", "today's news", "sports news", "politics news", "business news", "technology news"
-- Use get_specific_article for SPECIFIC article requests by number/position 
-  Examples: "3rd article", "first article", "6th news", "number 5 article", "article 2", "6 number news"
 
-SPECIFIC ARTICLE INDICATORS:
-- Numbers: 1st, 2nd, 3rd, 4th, 5th, 6th, first, second, third, fourth, fifth, sixth
-- Patterns: "number X", "article X", "X news", "X number news"
-
-Examples:
-- "Hello" or "How are you?" -> Respond directly, DO NOT use tools
-- "What's the latest news?" -> Use get_news_list
-- "Show me sports news" -> Use get_news_list
-- "Tell me about politics news" -> Use get_news_list
-- "Business news today" -> Use get_news_list
-- "Technology updates" -> Use get_news_list
-- "Tell me about the 3rd article" -> Use get_specific_article
-- "I want to know about the 6 number news" -> Use get_specific_article
-- "Show me article 2" -> Use get_specific_article
-- "What's the first news?" -> Use get_specific_article
-- "Thanks" or "Good morning" -> Respond directly, DO NOT use tools
-
-If the user is NOT asking for news or articles, just have a normal conversation without tools."""
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    ("human", "{input}")
-])
-
-# Create the chain with prompt
-llm_with_tools = prompt | llm.bind_tools(tools)
-response=llm_with_tools.invoke({"input": "What's the latest news?"})
-
-# Check if LLM wants to call tools
-if hasattr(response, 'tool_calls') and response.tool_calls:
-    print("=== TOOLS THAT WOULD BE INVOKED ===")
-    for i, tool_call in enumerate(response.tool_calls, 1):
-        print(f"{i}. Tool: {tool_call['name']}")
-        print(f"   Arguments: {tool_call['args']}")
-        print(f"   ID: {tool_call['id']}")
-        print()
-else:
-    print("No tools would be invoked")
-    print(f"Direct response: {response.content}")
-
-print(f"Full response: {response}")
-
-# Alternative method: Create a function to analyze tool calls
-def analyze_tool_calls(user_input: str):
-    """Analyze what tools would be called without executing them"""
-    response = llm_with_tools.invoke({"input": user_input})
+def call_model(state: MessagesState):
+    # Pass all messages to maintain conversation context
+    formatted_messages = news_chat_prompt.invoke({"input": state["messages"][-1].content}).to_messages()
     
-    print(f"\n=== ANALYSIS FOR: '{user_input}' ===")
+    # Replace the human message with the full conversation context
+    formatted_messages = formatted_messages[:-1] + state["messages"]
     
-    if hasattr(response, 'tool_calls') and response.tool_calls:
-        print(f"🔧 {len(response.tool_calls)} tool(s) would be invoked:")
-        for i, tool_call in enumerate(response.tool_calls, 1):
-            print(f"   {i}. {tool_call['name']}({tool_call['args']})")
+    # First try with simple LLM to see if it's a greeting/conversation
+    last_user_message = state["messages"][-1].content.lower() if state["messages"] else ""
+    
+    # Check if it's clearly a news request
+    news_keywords = ["news", "headlines", "breaking", "article", "latest", "today's news", "sports news", "politics news"]
+    is_news_request = any(keyword in last_user_message for keyword in news_keywords)
+    
+    if is_news_request:
+        # Use LLM with tools for news requests
+        response = llm_with_tools.invoke(formatted_messages)
+        
+        # If there are tool calls, execute them
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            
+            tool_messages = []
+            
+            for tool_call in response.tool_calls:
+                tool_name = tool_call['name']
+                tool_args = tool_call['args']
+                
+                try:
+                    if tool_name == 'get_news_list':
+                        result = get_news_list.invoke(tool_args)
+                    elif tool_name == 'get_specific_article':
+                        result = get_specific_article.invoke(tool_args)
+                    else:
+                        result = f"Unknown tool: {tool_name}"
+                    
+                    tool_messages.append(ToolMessage(
+                        content=str(result),
+                        tool_call_id=tool_call['id']
+                    ))
+                except Exception as e:
+                    tool_messages.append(ToolMessage(
+                        content=f"Error: {str(e)}",
+                        tool_call_id=tool_call['id']
+                    ))
+            
+            # Get final response with tool results
+            final_messages = formatted_messages + [response] + tool_messages
+            final_response = llm.invoke(final_messages)
+            return {"messages": final_response}
     else:
-        print("💬 No tools - direct LLM response")
-        if hasattr(response, 'content') and response.content:
-            print(f"   Response: {response.content}")
+        # Use simple LLM for conversations/greetings
+        response = llm.invoke(formatted_messages)
     
-    return response
+    return {"messages": response}
 
-# Test with different inputs
-test_inputs = [
-    "What's the latest news?",
-    "Tell me about the 3rd article", 
-    "Hello, how are you?",
-    "Show me sports news",
-    "Politics news today",
-    "Explain the first article in detail",
-    "I want to know about the 6 number news"
-]
+workflow = StateGraph(state_schema=MessagesState)
+workflow.add_node("call_model", call_model)
 
-for test_input in test_inputs:
-    analyze_tool_calls(test_input)
+workflow.add_edge(START, "call_model")
+workflow.add_edge("call_model",END)
+
+def process_chat_query(query):
+    """Function to process a chat query, invoke the model, and save the state."""
+    with SqliteSaver.from_conn_string(str(db_path)) as cp:
+        cp.setup()
+        config = {"configurable": {"thread_id": THREAD_ID}}
+        compiled_app = workflow.compile(checkpointer=cp)
+        try:
+            current_state = compiled_app.get_state(config)
+            if current_state and current_state.values.get("messages"):
+                existing_messages = current_state.values["messages"]
+            else:
+                existing_messages = []
+        except:
+            existing_messages = []
+        
+        # Add new message to existing conversation
+        new_messages = existing_messages + [HumanMessage(query)]
+        output = compiled_app.invoke({"messages": new_messages}, config)
+        
+        output["messages"][-1].pretty_print()
+         
+        return output
+
+if __name__ == "__main__":
+    process_chat_query("What is today top 10 news?")
+    process_chat_query("Can you tell me more about 5th News Article?")
+    process_chat_query("Hi! I'm Bob.")
+    process_chat_query("What's my name?")
+    process_chat_query("What was the last news you explained?")

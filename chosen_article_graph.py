@@ -67,8 +67,8 @@ def get_specific_article(user_input: str):
         result = workflow.invoke({"user_input": user_input}, config=config)
         print("selected url:", result)
     if isinstance(result, dict):
-        result_news= news_explainer_tool.invoke(result).content
-        print("news explained.")
+        result_news= news_explainer_tool.invoke(result)
+        print("raw article content fetched.")
     return result_news
 
 
