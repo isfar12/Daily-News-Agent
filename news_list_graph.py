@@ -12,7 +12,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 THREAD_ID = "session-1"  # define a constant for the thread id
 NEWS_STATE_KEY = "news_list_graph"  # define a constant for the state key
 
-db_path = Path("news_list_checkpoints.db")
+db_path = Path("chosen_news_list_checkpoints.db")
 load_dotenv()
 
 #------------------------ CLASS DEFINITIONS ------------------------#
@@ -49,10 +49,13 @@ news_list_graph.add_edge("news_list_function",END)
 
 
 
-def get_news_list_state():
+def get_news_list_state(thread_id: str = None):
+    if thread_id is None:
+        thread_id = THREAD_ID
+        
     with SqliteSaver.from_conn_string(str(db_path)) as cp:
         print("Fetching news list state...")
-        cfg = {"configurable": {"thread_id": THREAD_ID, "state_key": NEWS_STATE_KEY}}
+        cfg = {"configurable": {"thread_id": thread_id, "state_key": NEWS_STATE_KEY}}
         compiled = news_list_graph.compile(checkpointer=cp)  # Compile the graph
         
         # Access the state and retrieve the 'news_list'
@@ -94,17 +97,20 @@ def n_news(user_input: str):
 # print(n_news.invoke("today top eight news"))
 
 @tool
-def get_news_list(user_input: str):
+def get_news_list(user_input: str, thread_id: str = None):
     """Get today's latest news headlines with urls. Handles both general and specific topic requests.
     
    
     Do NOT use for greetings or general conversation.
     """
+    if thread_id is None:
+        thread_id = THREAD_ID
+        
     with SqliteSaver.from_conn_string(str(db_path)) as cp:
         cp.setup()
         graph = news_list_graph.compile(checkpointer=cp)
 
-        cfg = {"configurable": {"thread_id": THREAD_ID,"state_key": NEWS_STATE_KEY}}
+        cfg = {"configurable": {"thread_id": thread_id,"state_key": NEWS_STATE_KEY}}
 
         top_n=n_news.invoke({"user_input": user_input})
 

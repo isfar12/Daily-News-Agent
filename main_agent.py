@@ -12,7 +12,7 @@ from llm import llm
 load_dotenv()
 
 THREAD_ID = "session-fresh"  # define a constant for the thread id
-db_path = Path("chat_history.db")
+db_path = Path("chat_history_checkpoints.db")
 
 tools=[get_news_list,get_specific_article]
 
@@ -26,6 +26,9 @@ def call_model(state: MessagesState):
     
     # Replace the human message with the full conversation context
     formatted_messages = formatted_messages[:-1] + state["messages"]
+    
+    # Get thread_id from state if available
+    thread_id = state.get("thread_id", THREAD_ID)
     
     # First try with simple LLM to see if it's a greeting/conversation
     last_user_message = state["messages"][-1].content.lower() if state["messages"] else ""
@@ -46,6 +49,8 @@ def call_model(state: MessagesState):
             for tool_call in response.tool_calls:
                 tool_name = tool_call['name']
                 tool_args = tool_call['args']
+                # Add thread_id to tool arguments
+                tool_args['thread_id'] = thread_id
                 
                 try:
                     if tool_name == 'get_news_list':
@@ -81,11 +86,14 @@ workflow.add_node("call_model", call_model)
 workflow.add_edge(START, "call_model")
 workflow.add_edge("call_model",END)
 
-def process_chat_query(query):
+def process_chat_query(query, thread_id=None):
     """Function to process a chat query, invoke the model, and save the state."""
+    if thread_id is None:
+        thread_id = THREAD_ID
+    
     with SqliteSaver.from_conn_string(str(db_path)) as cp:
         cp.setup()
-        config = {"configurable": {"thread_id": THREAD_ID}}
+        config = {"configurable": {"thread_id": thread_id}}
         compiled_app = workflow.compile(checkpointer=cp)
         try:
             current_state = compiled_app.get_state(config)
@@ -98,15 +106,18 @@ def process_chat_query(query):
         
         # Add new message to existing conversation
         new_messages = existing_messages + [HumanMessage(query)]
-        output = compiled_app.invoke({"messages": new_messages}, config)
+        output = compiled_app.invoke({"messages": new_messages, "thread_id": thread_id}, config)
         
         output["messages"][-1].pretty_print()
          
         return output
 
 if __name__ == "__main__":
-    process_chat_query("What is today top 10 news?")
-    process_chat_query("Can you tell me more about 5th News Article?")
-    process_chat_query("Hi! I'm Bob.")
-    process_chat_query("What's my name?")
-    process_chat_query("What was the last news you explained?")
+    # Example usage with custom thread IDs
+    user_thread = "user-demo-123"
+    
+    process_chat_query("What is today top 10 news?", thread_id=user_thread)
+    process_chat_query("Can you tell me more about 5th News Article?", thread_id=user_thread)
+    process_chat_query("Hi! I'm Bob.", thread_id=user_thread)
+    process_chat_query("What's my name?", thread_id=user_thread)
+    process_chat_query("What was the last news you explained?", thread_id=user_thread)
