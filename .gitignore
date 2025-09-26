@@ -1,2 +1,9 @@
 .env
 __pycache__/
+
+# Ignore LangGraph / checkpoint binary artifact fragments
+*-checkpoints-*.bin
+
+# Optional: ignore sqlite checkpoint DBs (uncomment if desired)
+# *.db
+# *_checkpoints.db
