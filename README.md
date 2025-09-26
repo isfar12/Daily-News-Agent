@@ -63,7 +63,9 @@ flowchart LR
     style C fill:#e8f5e8
     style D fill:#e8f5e8
     style I fill:#fff3e0
-```### Sequence (Example: "Explain the 5th article")
+```
+
+### Sequence (Example: "Explain the 5th article")
 
 ```mermaid
 sequenceDiagram
