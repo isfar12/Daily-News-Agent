@@ -27,7 +27,6 @@ def chosen_article_url(state: ChosenArticleGraph) -> ChosenArticleGraph:
     user_input = state["user_input"]
     thread_id = state.get("thread_id", THREAD_ID)
     
-    # Read the previously computed news list from the news_list_graph checkpoint
     articles = get_news_list_state(thread_id)
     # print(articles)
     if not articles:
@@ -50,21 +49,15 @@ graph.add_node("chosen_article_url",chosen_article_url)
 graph.add_edge(START,"chosen_article_url")
 graph.add_edge("chosen_article_url",END)
 
+
+
 @tool
 def get_specific_article(user_input: str, thread_id: str = None):
-    """Get detailed information about a specific article when user mentions article numbers, positions, or wants details about a particular article.
-        
-        Args:
-            user_input: User's request for a specific article (e.g., 'tell me about the 3rd article', 'explain the first article')
-            thread_id: Thread ID for maintaining conversation context
-            
-        Examples of when to use:
-        - "Tell me about the 3rd article"
-        - "Explain the first article in detail"
-        - "What's the 5th news item about?"
-        
-        Do NOT use for general news requests.
-        """
+    """Get full content of a specific article. Use when user asks about a particular article by number or position.
+    
+    Use for: "1st article", "tell me about 3rd news", "explain the fifth one", "number 10 article"
+    Don't use for: general news requests or getting news lists
+    """
     if thread_id is None:
         thread_id = THREAD_ID
         
@@ -73,13 +66,14 @@ def get_specific_article(user_input: str, thread_id: str = None):
     with SqliteSaver.from_conn_string(str(db_path)) as checkpointer:
         workflow = graph.compile(checkpointer=checkpointer)
         result = workflow.invoke({"user_input": user_input, "thread_id": thread_id}, config=config)
-        print("selected url:", result)
+        # print("selected url:", result)
     if isinstance(result, dict):
         result_news= news_explainer_tool.invoke(result)
-        print("raw article content fetched.")
+        # print("raw article content fetched.")
     return result_news
 
 
 
 # news=get_specific_article("Tell me about the sports article.")
-# print(news)
+# result=get_specific_article.invoke({"user_input": "Explain number 2 article", "thread_id": "test-thread"})
+# print(result)

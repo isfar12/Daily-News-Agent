@@ -10,3 +10,5 @@ class NewsSummary(BaseModel):
 class UrlOnly(BaseModel):
     url: Annotated[str, Field(description="The URL of the article")]
     
+class N_Number(BaseModel):
+    number: Annotated[str, Field(description="The extracted article number from user input")]

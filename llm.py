@@ -6,9 +6,10 @@ load_dotenv()
 
 # Main LLM configuration
 llm = ChatOllama(
-    model="llama3.2:latest", 
+    model="llama3.1:8b", #llama3.1:8b 
+    # num_thread=10,
     temperature=0.4, 
-    max_tokens=32000,
+    top_p=.5,
     num_ctx=32768  # Set context window to 32k tokens
 )
 

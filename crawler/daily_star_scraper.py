@@ -466,7 +466,7 @@ def save_headlines_to_file(headlines: List[Dict[str, str]]) -> None:
 
 
 def main(argv: List[str] | None = None) -> None:
-    headlines = get_dailystar_headlines(max_articles=20)
+    headlines = get_dailystar_headlines(max_articles=10)
     
     # Always write a file, even if no headlines were found
     save_headlines_to_file(headlines)

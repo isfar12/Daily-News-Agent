@@ -86,7 +86,7 @@ def article_crawler(url: Optional[str] = None, *, markdown: bool = False, raw: b
     if raw:
         return json.dumps(asdict(article), ensure_ascii=False, indent=2)
     elif markdown:
-        return f"# {article.title}\n\n{article.body}"
+        return f"# {article.title}\n\n{article.body[:200]}...\n\n[Read more]({article.url})"
     else:
         return format_text(article)
 

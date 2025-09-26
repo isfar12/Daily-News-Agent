@@ -1,12 +1,9 @@
 from core.loaders import load_news_articles
 from core.scraper_loaders import run_all_scrapers
-from core.universal_article_crawler import article_crawler
-from core.parser import UrlOnly
+from crawler import universal_article_crawler
+from core.parser import UrlOnly,N_Number
 from langchain.tools import tool
-from core.scraper_loaders import run_all_scrapers
-from core.loaders import load_news_articles
-from core.universal_article_crawler import article_crawler
-from prompt import news_list_prompt,article_choose_tool_prompt
+from prompt import news_list_prompt, article_choose_tool_prompt, article_number_extraction_prompt
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -14,7 +11,7 @@ from llm import llm
 load_dotenv()
 
 llm_url_only=llm.with_structured_output(UrlOnly)
-
+llm_number_only=llm.with_structured_output(N_Number)
 def check_todays_news_files():
     """Check if today's news files already exist in the news folder"""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -39,7 +36,7 @@ def check_todays_news_files():
         return False
 
 @tool
-def news_list_tool(top_n: str, query: str = "latest news") -> str:
+def news_list_tool(top_n: str, user_input: str) -> str:
     """Given a list of news articles, return the top news headlines,category/section with their urls in markdown format.
     Can handle both general and specific topic requests."""
     
@@ -50,23 +47,31 @@ def news_list_tool(top_n: str, query: str = "latest news") -> str:
         print("Scraping done.")
     
     articles = load_news_articles()
-    print(f"Loaded articles.")
-    prompt=news_list_prompt.format(articles=articles, top_n=top_n, query=query)
+    # print(f"Loaded articles.")
+    prompt=news_list_prompt.format(articles=articles, top_n=top_n, user_input=user_input)
     top_news = llm.invoke(prompt).content
-    print("Top news fetched.")
+    # print("Top news fetched.")
     return top_news
 
 
 @tool
 def news_explainer_tool(url: str) -> str:
-    """ Given a news article url, return the raw article content without processing."""
-    article = article_crawler(url)
-
+    """ Given a news article url, return comprehensive article content with detailed explanation for Bangla content."""
+    article = universal_article_crawler.article_crawler(url, markdown=True)
     return article
+
+@tool
+def article_number_extractor_tool(user_input: str) -> str:
+    """ Extract the article number from user input. Returns the article number that user is referring to."""
+    
+    prompt = article_number_extraction_prompt.format(user_input=user_input)
+    article_number = llm_number_only.invoke(prompt).number
+    return article_number if article_number.isdigit() else "1"
 
 @tool
 def article_chooser_tool(user_input: str, articles: str) -> str:
     """ Given a user input and a list of articles, choose the article that matches the user input and return its url."""
-    prompt=article_choose_tool_prompt.format(user_input=user_input, articles=articles)
+    article_number = article_number_extractor_tool.invoke({"user_input": user_input}) 
+    prompt = article_choose_tool_prompt.format(article_number=article_number, articles=articles)
     chosen_article_url = llm_url_only.invoke(prompt)
     return chosen_article_url
