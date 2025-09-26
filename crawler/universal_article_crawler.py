@@ -61,6 +61,15 @@ def parse_article_html(url: str, html: str) -> Article:
     soup = BeautifulSoup(html, "html.parser")
     title = soup.title.string.strip() if soup.title else None
     body = "\n\n".join(p.get_text(strip=True) for p in soup.find_all("p"))
+    
+    # Daily Star specific truncation logic
+    if "thedailystar.net" in url.lower():
+        body_lines = body.split('\n\n')
+        if len(body_lines) > 5:  # Only truncate if there are enough lines
+            # Remove first 4 lines (sidebar content) and last line (other news)
+            body_lines = body_lines[4:-1]
+            body = '\n\n'.join(body_lines)
+    
     return Article(
         url=url,
         site=urlparse(url).netloc,
@@ -86,7 +95,7 @@ def article_crawler(url: Optional[str] = None, *, markdown: bool = False, raw: b
     if raw:
         return json.dumps(asdict(article), ensure_ascii=False, indent=2)
     elif markdown:
-        return f"# {article.title}\n\n{article.body[:200]}...\n\n[Read more]({article.url})"
+        return f"# {article.title}\n\nRead Here - {article.url}\n\n{article.body}"
     else:
         return format_text(article)
 
