@@ -40,20 +40,20 @@ A multi-agent, multilingual news intelligence app built with Streamlit, LangGrap
 
 ```mermaid
 flowchart LR
-    A[👤 User Query] --> B[🤖 Main Agent]
+    A["👤 User Query"] --> B["🤖 Main Agent"]
     
-    B -->|"Today's news"<br/>"Top 10 headlines"| C[📰 News List Tool]
-    B -->|"Explain 3rd article"<br/>"Tell me about #5"| D[📄 Article Tool]
+    B -->|"Today's news / Top 10 headlines"| C["📰 News List Tool"]
+    B -->|"Explain 3rd article / Tell me about #5"| D["📄 Article Tool"]
     
-    C --> E[📊 News Sources<br/>Daily Star, Dhaka Tribune<br/>Prothom Alo, Jugantor]
+    C --> E["📊 News Sources<br/>Daily Star, Dhaka Tribune<br/>Prothom Alo, Jugantor"]
     
-    D --> F[🔍 Article Crawler]
+    D --> F["🔍 Article Crawler"]
     F --> E
     
-    C --> G[📋 Headlines List]
-    F --> H[📖 Full Article Content]
+    C --> G["📋 Headlines List"]
+    F --> H["📖 Full Article Content"]
     
-    G --> I[✨ Response<br/>Bangla/English Preserved]
+    G --> I["✨ Response<br/>Bangla/English Preserved"]
     H --> I
     
     I --> A
